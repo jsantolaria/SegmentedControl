@@ -10,15 +10,19 @@ import UIKit
 
 open class SegmentedControl: UIControl {
     open weak var delegate: SegmentedControlDelegate?
-
+    
     open var layoutPolicy: SegmentedControlLayoutPolicy = .fixed
-
+    
     open fileprivate(set) var selectedIndex = 0 {
         didSet {
-            setNeedsDisplay()
+            drawSelectionIndicator()
+            makeAccessible()
         }
     }
-
+    
+    open var accessibleStringSelected: String = ""
+    open var accessibleStringUnselected: String = ""
+    
     /// Only available in dynamic layout policy
     open var segmentSpacing: CGFloat = 0
     /// Only available in dynamic layout policy
@@ -27,31 +31,31 @@ open class SegmentedControl: UIControl {
     open var selectionHorizontalPadding: CGFloat = Constant.defaultSelectionHorizontalPadding
     /// Only available in dynamic layout policy, only the left and right inset works, the top and bottom inset will be ignored.
     open var contentInset = UIEdgeInsets.zero
-
+    
     /// Only available in fixed layout policy
     open var segmentWidth: CGFloat?
     /// Only available in fixed layout policy
     open var minimumSegmentWidth: CGFloat?
     /// Only available in fixed layout policy
     open var maximumSegmentWidth: CGFloat?
-
+    
     open var isAnimationEnabled = true
     open var isUserDragEnabled = true
     open fileprivate(set) var style: SegmentedControlStyle = .text
-
+    
     open var selectionBoxStyle: SegmentedControlSelectionBoxStyle = .none
     open var selectionBoxColor = UIColor.blue
     open var selectionBoxCornerRadius: CGFloat = 0
     /// Only available in fixed layout policy
     open var selectionBoxEdgeInsets = UIEdgeInsets.zero
-
+    
     open var selectionIndicatorStyle: SegmentedControlSelectionIndicatorStyle = .none
     open var selectionIndicatorColor = UIColor.black
     open var selectionIndicatorHeight = SelectionIndicator.defaultHeight
     /// Only available in fixed layout policy
     open var selectionIndicatorEdgeInsets = UIEdgeInsets.zero
     open var titleAttachedIconPositionOffset: (x: CGFloat, y: CGFloat) = (0, 0)
-
+    
     open fileprivate(set) var titles = [NSAttributedString]() {
         didSet {
             titleSizes = titles.map { sizeForAttributedString($0) }
@@ -62,9 +66,9 @@ open class SegmentedControl: UIControl {
     open fileprivate(set) var selectedImages: [UIImage]?
     open fileprivate(set) var titleAttachedIcons: [UIImage]?
     open fileprivate(set) var selectedTitleAttachedIcons: [UIImage]?
-
+    
     fileprivate var titleSizes = [CGSize]()
-
+    
     open var isLongPressEnabled = false {
         didSet {
             if isLongPressEnabled {
@@ -99,7 +103,7 @@ open class SegmentedControl: UIControl {
     open var scrollContentOffset: CGPoint {
         return scrollView.contentOffset
     }
-
+    
     fileprivate lazy var scrollView: SCScrollView = {
         let scrollView = SCScrollView()
         scrollView.scrollsToTop = false
@@ -110,16 +114,27 @@ open class SegmentedControl: UIControl {
     fileprivate lazy var selectionBoxLayer = CALayer()
     fileprivate lazy var selectionIndicatorLayer = CALayer()
     fileprivate var longPressGesture: UILongPressGestureRecognizer?
-
+    
     // MARK: - Public functions
-    open class func initWithTitles(_ titles: [NSAttributedString], selectedTitles: [NSAttributedString]?) -> SegmentedControl {
+    open class func initWithTitles(_ titles: [NSAttributedString], selectedTitles: [NSAttributedString]?,
+                                   accessibleStringForSelectedState: String? = nil, accessibleStringForUnselectedState: String? = nil) -> SegmentedControl {
         let segmentedControl = SegmentedControl(frame: CGRect.zero)
         segmentedControl.style = .text
         segmentedControl.titles = titles
         segmentedControl.selectedTitles = selectedTitles
+        
+        
+        if accessibleStringForSelectedState != nil {
+            segmentedControl.accessibleStringSelected = accessibleStringForSelectedState!
+        }
+        
+        if accessibleStringForUnselectedState != nil {
+            segmentedControl.accessibleStringUnselected = accessibleStringForUnselectedState!
+        }
+        
         return segmentedControl
     }
-
+    
     open class func initWithImages(_ images: [UIImage], selectedImages: [UIImage]?) -> SegmentedControl {
         let segmentedControl = SegmentedControl(frame: CGRect.zero)
         segmentedControl.style = .image
@@ -127,25 +142,26 @@ open class SegmentedControl: UIControl {
         segmentedControl.selectedImages = selectedImages
         return segmentedControl
     }
-
+    
     open func setTitles(_ titles: [NSAttributedString], selectedTitles: [NSAttributedString]?) {
         style = .text
         self.titles = titles
         self.selectedTitles = selectedTitles
     }
-
+    
     open func setImages(_ images: [UIImage], selectedImages: [UIImage]?) {
         style = .image
         self.images = images
         self.selectedImages = selectedImages
     }
-
+    
     open func setTitleAttachedIcons(_ titleAttachedIcons: [UIImage]?, selectedTitleAttachedIcons: [UIImage]?) {
         self.titleAttachedIcons = titleAttachedIcons
         self.selectedTitleAttachedIcons = selectedTitleAttachedIcons
     }
-
+    
     open func setSelected(at index: Int, animated: Bool) {
+        
         if !(0..<segmentsCount() ~= selectedIndex) {
             return
         }
@@ -161,7 +177,7 @@ open class SegmentedControl: UIControl {
             selectionIndicatorLayer.actions = nil
         }
     }
-
+    
     open func rectForSegment(at index: Int) -> CGRect? {
         guard 0..<segmentsCount() ~= index else {
             return nil
@@ -180,23 +196,38 @@ open class SegmentedControl: UIControl {
                           height: frame.height)
         }
     }
-
+    
+    
+    
+    // MARK: - Accessibility
+    open func makeAccessible() {
+        for (index, label) in scrollView.subviews.enumerated() {
+            if let _label = label as? TagStringLabel {
+                var speech = _label.tagString
+                speech += (selectedIndex == _label.tag ? accessibleStringSelected : accessibleStringUnselected)
+                
+                _label.accessibilityLabel = speech
+            }
+        }
+    }
+    
+    
     // MARK: - Initialization
     public override init(frame: CGRect) {
         super.init(frame: frame)
         commonInit()
     }
-
+    
     public required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         commonInit()
     }
-
+    
     open override func awakeFromNib() {
         super.awakeFromNib()
         commonInit()
     }
-
+    
     fileprivate func commonInit() {
         addSubview(scrollView)
         contentMode = .redraw
@@ -204,19 +235,19 @@ open class SegmentedControl: UIControl {
             parentViewController.automaticallyAdjustsScrollViewInsets = false
         }
     }
-
+    
     // MARK: - Overriding
     open override func layoutSubviews() {
         super.layoutSubviews()
         update()
     }
-
+    
     open override var frame: CGRect {
         didSet {
             update()
         }
     }
-
+    
     open override func willMove(toSuperview newSuperview: UIView?) {
         super.willMove(toSuperview: newSuperview)
         if newSuperview == nil {
@@ -224,22 +255,22 @@ open class SegmentedControl: UIControl {
         }
         update()
     }
-
+    
     open override func draw(_ rect: CGRect) {
         backgroundColor?.setFill()
         UIRectFill(bounds)
-
+        
         scrollView.layer.sublayers?.removeAll()
         selectionBoxLayer.backgroundColor = selectionBoxColor.cgColor
         selectionIndicatorLayer.backgroundColor = selectionIndicatorColor.cgColor
-
+        
         switch style {
         case .text:
             drawTitles()
         case .image:
             drawImages()
         }
-
+        
         if selectionIndicatorStyle != .none {
             drawSelectionIndicator()
         }
@@ -247,7 +278,7 @@ open class SegmentedControl: UIControl {
             drawSelectionBox()
         }
     }
-
+    
     open override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard !isLongPressActivated else {
             return
@@ -255,12 +286,12 @@ open class SegmentedControl: UIControl {
         guard let touch = touches.first else {
             return
         }
-
+        
         let touchLocation = touch.location(in: self)
         guard let touchIndex = evaluateTouchIndex(fromTouchLocation: touchLocation) else {
             return
         }
-
+        
         if 0..<segmentsCount() ~= touchIndex {
             delegate?.segmentedControl(self, didSelectIndex: touchIndex)
             if touchIndex != selectedIndex {
@@ -275,7 +306,7 @@ public extension SegmentedControl {
     fileprivate func update() {
         scrollView.frame = CGRect(origin: CGPoint.zero, size: frame.size)
         scrollView.isScrollEnabled = isUserDragEnabled
-
+        
         switch layoutPolicy {
         case .fixed:
             scrollView.contentSize = CGSize(width: totalSegmentsWidth(), height: frame.height)
@@ -289,15 +320,15 @@ public extension SegmentedControl {
                 scrollView.contentInset = UIEdgeInsets.zero
             }
         }
-
+        
         scrollToSelectedIndex(animated: false)
     }
-
+    
     fileprivate func scrollToSelectedIndex(animated: Bool) {
         if layoutPolicy == .dynamic && (totalSegmentsWidth() + contentInset.left + contentInset.right) < frame.width {
             return
         }
-
+        
         let rectToScroll: CGRect = {
             var rectToScroll = self.rectForSelectedIndex()
             let scrollOffset: CGFloat = {
@@ -312,10 +343,10 @@ public extension SegmentedControl {
             rectToScroll.size.width += scrollOffset * 2
             return rectToScroll
         }()
-
+        
         scrollView.scrollRectToVisible(rectToScroll, animated: animated)
     }
-
+    
     fileprivate func evaluateTouchIndex(fromTouchLocation touchLocation: CGPoint) -> Int? {
         func startX(_ index: Int) -> CGFloat {
             return contentInset.left + totalSegmentsWidths(before: index).reduce(0, +) + segmentSpacing * CGFloat(index)
@@ -323,11 +354,11 @@ public extension SegmentedControl {
         func endX(_ index: Int) -> CGFloat {
             return startX(index) + singleSegmentWidth(at: index)
         }
-
+        
         guard bounds.contains(touchLocation) else {
             return nil
         }
-
+        
         switch layoutPolicy {
         case .fixed:
             if singleSegmentWidth() == 0 {
@@ -339,7 +370,7 @@ public extension SegmentedControl {
             let touchX = touchLocation.x + scrollView.contentOffset.x
             var maxIndex = segmentsCount() - 1
             var minIndex = 0
-
+            
             if startX(minIndex)...endX(minIndex) ~= touchX {
                 return minIndex
             } else if startX(maxIndex)...endX(maxIndex) ~= touchX {
@@ -347,7 +378,7 @@ public extension SegmentedControl {
             } else {
                 while (maxIndex - minIndex) / 2 > 0 {
                     let midIndex = minIndex + (maxIndex - minIndex) / 2
-
+                    
                     if startX(minIndex)...endX(minIndex) ~= touchX {
                         return minIndex
                     } else if startX(maxIndex)...endX(maxIndex) ~= touchX {
@@ -376,7 +407,7 @@ extension SegmentedControl: UIGestureRecognizerDelegate {
         }
         return false
     }
-
+    
     func segmentedControlLongPressed(_ gesture: UIGestureRecognizer) {
         switch gesture.state {
         case .possible:
@@ -404,17 +435,17 @@ extension SegmentedControl: UIGestureRecognizerDelegate {
             break
         }
     }
-
+    
     fileprivate func locationIndex(for gesture: UIGestureRecognizer) -> Int? {
         let longPressLocation = gesture.location(in: self)
         return evaluateTouchIndex(fromTouchLocation: longPressLocation)
     }
-
+    
     fileprivate func longPressDidBegin(_ gesture: UIGestureRecognizer) {
         guard let longPressIndex = locationIndex(for: gesture) else {
             return
         }
-
+        
         if longPressIndex != selectedIndex && !isUnselectedSegmentsLongPressEnabled {
             return
         }
@@ -453,20 +484,20 @@ public extension SegmentedControl {
             }()
             let attachedIcon = index == selectedIndex ? selectedTitleAttachedIcon(at: index) : titleAttachedIcon(at: index)
             var attachedIconRect = CGRect.zero
-
+            
             let titleRect: CGRect = {
                 var titleRect = CGRect(origin: CGPoint(x: xPosition, y: yPosition), size: titleSize)
-
+                
                 if let attachedIcon = attachedIcon {
                     let addedWidth = attachedIcon.size.width + titleAttachedIconPositionOffset.x
-
+                    
                     switch layoutPolicy {
                     case .fixed:
                         titleRect.origin.x -= addedWidth / 2
                     case .dynamic:
                         break
                     }
-
+                    
                     let xPositionOfAttachedIcon = titleRect.origin.x + titleRect.width + titleAttachedIconPositionOffset.x
                     let yPositionOfAttachedIcon: CGFloat = {
                         let yPositionOfAttachedIcon = (frame.height - attachedIcon.size.height) / 2
@@ -483,10 +514,10 @@ public extension SegmentedControl {
                     }()
                     attachedIconRect = CGRect(x: round(xPositionOfAttachedIcon), y: round(yPositionOfAttachedIcon), width: round(attachedIcon.size.width), height: round(attachedIcon.size.height))
                 }
-
+                
                 return CGRect(x: round(titleRect.origin.x), y: round(titleRect.origin.y), width: round(titleRect.width), height: round(titleRect.height))
             }()
-
+            
             let titleString: NSAttributedString = {
                 if index == selectedIndex, let selectedTitle = selectedTitle(at: index) {
                     return selectedTitle
@@ -504,20 +535,30 @@ public extension SegmentedControl {
                 }
                 titleLayer.string = titleString
                 titleLayer.contentsScale = UIScreen.main.scale
+                
                 return titleLayer
             }()
-
+            
             if let attachedIcon = attachedIcon {
                 let attachedIconLayer = CALayer()
                 attachedIconLayer.frame = attachedIconRect
                 attachedIconLayer.contents = attachedIcon.cgImage
                 scrollView.layer.addSublayer(attachedIconLayer)
             }
-
+            
+            let accessibleRect = CGRect(x: titleRect.origin.x, y: 0, width: titleRect.size.width, height: bounds.height)
+            let accessibleLabel = TagStringLabel(frame: accessibleRect)
+            
+            accessibleLabel.accessibilityLabel = titleString.string
+            accessibleLabel.tag = index
+            accessibleLabel.tagString = titleString.string
+            
+            scrollView.addSubview(accessibleLabel)
             scrollView.layer.addSublayer(titleLayer)
+            
         }
     }
-
+    
     fileprivate func drawImages() {
         for (index, image) in images.enumerated() {
             let xPosition: CGFloat = {
@@ -540,7 +581,7 @@ public extension SegmentedControl {
                 let imageRect = CGRect(origin: CGPoint(x: xPosition, y: yPosition), size: image.size)
                 return CGRect(x: round(imageRect.origin.x), y: round(imageRect.origin.y), width: round(imageRect.width), height: round(imageRect.height))
             }()
-
+            
             let contents: CGImage? = {
                 if index == selectedIndex, let selectedImage = selectedImage(at: index) {
                     return selectedImage.cgImage
@@ -556,7 +597,7 @@ public extension SegmentedControl {
             scrollView.layer.addSublayer(imageLayer)
         }
     }
-
+    
     fileprivate func drawSelectionBox() {
         selectionBoxLayer.frame = frameForSelectionBox()
         selectionBoxLayer.cornerRadius = selectionBoxCornerRadius
@@ -564,7 +605,7 @@ public extension SegmentedControl {
             scrollView.layer.insertSublayer(selectionBoxLayer, at: 0)
         }
     }
-
+    
     fileprivate func drawSelectionIndicator() {
         selectionIndicatorLayer.frame = frameForSelectionIndicator()
         if selectionBoxLayer.superlayer == nil {
@@ -583,35 +624,35 @@ public extension SegmentedControl {
         let size = attributedString.size()
         return CGRect(origin: CGPoint.zero, size: size).integral.size
     }
-
+    
     fileprivate func selectedImage(at index: Int) -> UIImage? {
         if let selectedImages = selectedImages, 0..<selectedImages.count ~= index {
             return selectedImages[index]
         }
         return nil
     }
-
+    
     fileprivate func selectedTitle(at index: Int) -> NSAttributedString? {
         if let selectedTitles = selectedTitles, 0..<selectedTitles.count ~= index {
             return selectedTitles[index]
         }
         return nil
     }
-
+    
     fileprivate func titleAttachedIcon(at index: Int) -> UIImage? {
         if let titleAttachedIcons = titleAttachedIcons, 0..<titleAttachedIcons.count ~= index {
             return titleAttachedIcons[index]
         }
         return nil
     }
-
+    
     fileprivate func selectedTitleAttachedIcon(at index: Int) -> UIImage? {
         if let selectedTitleAttachedIcons = selectedTitleAttachedIcons, 0..<selectedTitleAttachedIcons.count ~= index {
             return selectedTitleAttachedIcons[index]
         }
         return nil
     }
-
+    
     fileprivate func segmentsCount() -> Int {
         switch style {
         case .text:
@@ -620,12 +661,12 @@ public extension SegmentedControl {
             return images.count
         }
     }
-
+    
     fileprivate func frameForSelectionBox() -> CGRect {
         if selectionBoxStyle == .none {
             return CGRect.zero
         }
-
+        
         let xPosition: CGFloat = {
             switch layoutPolicy {
             case .fixed:
@@ -635,7 +676,7 @@ public extension SegmentedControl {
                 return contentInset.left + frontWidths.reduce(0, +) + segmentSpacing * CGFloat(frontWidths.count)
             }
         }()
-
+        
         let boxRect: CGRect = {
             switch layoutPolicy  {
             case .fixed:
@@ -651,15 +692,15 @@ public extension SegmentedControl {
                               height: selectionBoxHeight)
             }
         }()
-
+        
         return boxRect
     }
-
+    
     fileprivate func frameForSelectionIndicator() -> CGRect {
         if selectionIndicatorStyle == .none {
             return CGRect.zero
         }
-
+        
         let xPosition: CGFloat = {
             switch layoutPolicy {
             case .fixed:
@@ -669,7 +710,7 @@ public extension SegmentedControl {
                 return contentInset.left + frontWidths.reduce(0, +) + segmentSpacing * CGFloat(frontWidths.count)
             }
         }()
-
+        
         let yPosition: CGFloat = {
             switch selectionIndicatorStyle {
             case .bottom:
@@ -680,7 +721,7 @@ public extension SegmentedControl {
                 return 0
             }
         }()
-
+        
         let indicatorRect: CGRect = {
             switch layoutPolicy {
             case .fixed:
@@ -698,7 +739,7 @@ public extension SegmentedControl {
         }()
         return indicatorRect
     }
-
+    
     fileprivate func rectForSelectedIndex() -> CGRect {
         switch layoutPolicy {
         case .fixed:
@@ -709,7 +750,7 @@ public extension SegmentedControl {
             return CGRect(x: xPosition, y: 0, width: singleSegmentWidth(at: selectedIndex), height: frame.height)
         }
     }
-
+    
     fileprivate func singleSegmentWidth(at index: Int? = nil) -> CGFloat {
         func defaultSegmentWidth() -> CGFloat {
             if segmentsCount() == 0 {
@@ -728,7 +769,7 @@ public extension SegmentedControl {
             }
             return segmentWidth
         }
-
+        
         switch layoutPolicy {
         case .fixed:
             if let segmentWidth = segmentWidth {
@@ -746,7 +787,7 @@ public extension SegmentedControl {
             return segmentWidth
         }
     }
-
+    
     fileprivate func totalSegmentsWidth() -> CGFloat {
         switch layoutPolicy {
         case .fixed:
@@ -756,7 +797,7 @@ public extension SegmentedControl {
             return segmentsWidths.reduce(0, +) + segmentSpacing * CGFloat(segmentsWidths.count - 1)
         }
     }
-
+    
     fileprivate func totalSegmentsWidths(before index: Int) -> [CGFloat] {
         switch layoutPolicy {
         case .fixed:
@@ -765,4 +806,10 @@ public extension SegmentedControl {
             return titleSizes[0..<index].enumerated().map { singleSegmentWidth(at: $0.offset) }
         }
     }
+}
+
+
+
+class TagStringLabel: UILabel {
+    var tagString: String = ""
 }
