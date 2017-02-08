@@ -25,7 +25,8 @@ Pod::Spec.new do |s|
   #   * Write the description between the DESC delimiters below.
   #   * Finally, don't worry about the indent, CocoaPods strips it!
   s.description  = <<-DESC
-    blahblah
+    A highly customizable segmented control for iOS applications 
+    A highly customizable segmented control for iOS applications.
                    DESC
 
   s.homepage     = "https://github.com/jsantolaria/SegmentedControl"
