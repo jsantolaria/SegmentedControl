@@ -556,6 +556,7 @@ public extension SegmentedControl {
             scrollView.addSubview(accessibleLabel)
             scrollView.layer.addSublayer(titleLayer)
             
+            makeAccessible()
         }
     }
     
